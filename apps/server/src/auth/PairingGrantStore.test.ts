@@ -1,7 +1,9 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
+import * as Crypto from "effect/Crypto";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Encoding from "effect/Encoding";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
 import * as Queue from "effect/Queue";
@@ -87,6 +89,40 @@ it.layer(NodeServices.layer)("PairingGrantStore.layer", (it) => {
       expect(issued.label).toBe("Julius iPhone");
       expect(second._tag).toBe("UnknownBootstrapCredentialError");
       expect(second.message).toContain("Unknown bootstrap credential");
+    }).pipe(Effect.provide(makePairingGrantStoreLayer())),
+  );
+
+  it.effect("issues hashed reusable enrollment keys that can enroll multiple clients", () =>
+    Effect.gen(function* () {
+      const grants = yield* PairingGrantStore.PairingGrantStore;
+      const pairingLinks = yield* AuthPairingLinks.AuthPairingLinkRepository;
+      const crypto = yield* Crypto.Crypto;
+      const issued = yield* grants.issueReusableEnrollment({ label: "Team devices" });
+      const storedDigest = Encoding.encodeHex(
+        yield* crypto.digest("SHA-256", new TextEncoder().encode(issued.credential)),
+      );
+
+      expect(issued.credential).toMatch(/^t3e_[A-Za-z0-9_-]{43}$/);
+      expect(
+        Option.isNone(yield* pairingLinks.getByCredential({ credential: issued.credential })),
+      ).toBe(true);
+      expect(Option.isSome(yield* pairingLinks.getByCredential({ credential: storedDigest }))).toBe(
+        true,
+      );
+      expect((yield* Effect.flip(grants.consume(storedDigest)))._tag).toBe(
+        "UnknownBootstrapCredentialError",
+      );
+
+      const first = yield* grants.consume(issued.credential);
+      const second = yield* grants.consume(issued.credential);
+      expect(first.method).toBe("reusable-enrollment");
+      expect(first.pairingLinkId).toBe(issued.id);
+      expect(second.pairingLinkId).toBe(issued.id);
+
+      expect(yield* grants.revoke(issued.id)).toBe(true);
+      expect((yield* Effect.flip(grants.consume(issued.credential)))._tag).toBe(
+        "UnavailableBootstrapCredentialError",
+      );
     }).pipe(Effect.provide(makePairingGrantStoreLayer())),
   );
 

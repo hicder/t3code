@@ -33,8 +33,8 @@ export const make = Effect.gen(function* () {
     policy === "desktop-managed-local"
       ? ["desktop-bootstrap"]
       : config.mode === "desktop" && policy === "remote-reachable"
-        ? ["desktop-bootstrap", "one-time-token"]
-        : ["one-time-token"];
+        ? ["desktop-bootstrap", "one-time-token", "reusable-enrollment"]
+        : ["one-time-token", "reusable-enrollment"];
 
   const descriptor: ServerAuthDescriptor = {
     policy,

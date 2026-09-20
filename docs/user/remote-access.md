@@ -62,6 +62,17 @@ created in Settings can only be copied from the client that created them while
 its Connections page stays open. If you leave or reload that page, create
 another link to share.
 
+For a managed set of machines, create one reusable enrollment key instead:
+
+```bash
+t3 auth enrollment create --ttl 365d --base-url http://<private-ip>:13773
+```
+
+The key can pair multiple machines until it expires or is revoked. Each machine
+receives its own session and can be revoked independently. List or revoke keys
+with `t3 auth enrollment list` and `t3 auth enrollment revoke <id>`. Treat an
+enrollment key as a password; anyone holding it can add another client.
+
 ### Balance new threads across machines
 
 Auto balance is off by default. On web and desktop, enable it in

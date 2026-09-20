@@ -101,6 +101,7 @@ async function installAuthApi(input: {
   readonly pairingCredential?: (payload: AuthCreatePairingCredentialInput) => Effect.Effect<{
     readonly id: string;
     readonly credential: string;
+    readonly reusable: boolean;
     readonly label?: string;
     readonly expiresAt: DateTime.Utc;
   }>;
@@ -651,6 +652,7 @@ describe("resolveInitialServerAuthGateState", () => {
         Effect.succeed({
           id: "pairing-link-1",
           credential: "pairing-token",
+          reusable: payload.reusable ?? false,
           ...(payload.label === undefined ? {} : { label: payload.label }),
           expiresAt: SESSION_EXPIRES_AT,
         }),

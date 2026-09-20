@@ -339,6 +339,42 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
     }).pipe(Effect.provide(makeEnvironmentAuthLayer())),
   );
 
+  it.effect("uses one reusable enrollment key to issue distinct linked client sessions", () =>
+    Effect.gen(function* () {
+      const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
+      const sql = yield* SqlClient.SqlClient;
+      const enrollment = yield* serverAuth.issuePairingCredential({
+        reusable: true,
+        label: "Team devices",
+      });
+
+      const first = yield* serverAuth.createBrowserSession(enrollment.credential, {
+        ...requestMetadata,
+        label: "Laptop",
+      });
+      const second = yield* serverAuth.createBrowserSession(enrollment.credential, {
+        ...requestMetadata,
+        label: "Phone",
+      });
+      const rows = yield* sql<{
+        readonly sessionId: string;
+        readonly sourcePairingLinkId: string | null;
+      }>`
+        SELECT
+          session_id AS "sessionId",
+          source_pairing_link_id AS "sourcePairingLinkId"
+        FROM auth_sessions
+        WHERE source_pairing_link_id = ${enrollment.id}
+        ORDER BY issued_at
+      `;
+
+      expect(enrollment.reusable).toBe(true);
+      expect(first.sessionToken).not.toBe(second.sessionToken);
+      expect(rows).toHaveLength(2);
+      expect(rows.every((row) => row.sourcePairingLinkId === enrollment.id)).toBe(true);
+    }).pipe(Effect.provide(makeEnvironmentAuthLayer())),
+  );
+
   it.effect("prefers a bearer token over a stale legacy cookie", () =>
     Effect.gen(function* () {
       const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;

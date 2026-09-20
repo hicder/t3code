@@ -126,7 +126,12 @@ const pairingListCommand = Command.make("list", {
           const pairingLinks = yield* environmentAuth.listPairingLinks({
             excludeSubjects: [EnvironmentAuth.INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT],
           });
-          yield* Console.log(formatPairingCredentialList(pairingLinks, { json: flags.json }));
+          yield* Console.log(
+            formatPairingCredentialList(
+              pairingLinks.filter((link) => !link.reusable),
+              { json: flags.json },
+            ),
+          );
         }),
       {
         quietLogs: flags.json,
@@ -157,6 +162,91 @@ const pairingRevokeCommand = Command.make("revoke", {
 const pairingCommand = Command.make("pairing").pipe(
   Command.withDescription("Manage one-time client pairing tokens."),
   Command.withSubcommands([pairingCreateCommand, pairingListCommand, pairingRevokeCommand]),
+);
+
+const enrollmentCreateCommand = Command.make("create", {
+  ...authLocationFlags,
+  ttl: ttlFlag,
+  label: labelFlag,
+  baseUrl: baseUrlFlag,
+  json: jsonFlag,
+}).pipe(
+  Command.withDescription("Issue a long-lived reusable client enrollment key."),
+  Command.withHandler((flags) =>
+    runWithEnvironmentAuth(
+      flags,
+      (environmentAuth) =>
+        Effect.gen(function* () {
+          const issued = yield* environmentAuth.createPairingLink({
+            reusable: true,
+            scopes: AuthStandardClientScopes,
+            subject: "reusable-enrollment",
+            ...(Option.isSome(flags.ttl) ? { ttl: flags.ttl.value } : {}),
+            ...(Option.isSome(flags.label) ? { label: flags.label.value } : {}),
+          });
+          yield* Console.log(
+            formatIssuedPairingCredential(issued, {
+              json: flags.json,
+              ...(Option.isSome(flags.baseUrl) ? { baseUrl: flags.baseUrl.value } : {}),
+            }),
+          );
+        }),
+      { quietLogs: flags.json },
+    ),
+  ),
+);
+
+const enrollmentListCommand = Command.make("list", {
+  ...authLocationFlags,
+  json: jsonFlag,
+}).pipe(
+  Command.withDescription("List active reusable enrollment keys without revealing their secrets."),
+  Command.withHandler((flags) =>
+    runWithEnvironmentAuth(
+      flags,
+      (environmentAuth) =>
+        Effect.gen(function* () {
+          const links = yield* environmentAuth.listPairingLinks({
+            excludeSubjects: [EnvironmentAuth.INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT],
+          });
+          yield* Console.log(
+            formatPairingCredentialList(
+              links.filter((link) => link.reusable),
+              { json: flags.json },
+            ),
+          );
+        }),
+      { quietLogs: flags.json },
+    ),
+  ),
+);
+
+const enrollmentRevokeCommand = Command.make("revoke", {
+  ...authLocationFlags,
+  id: Argument.String("id").pipe(Argument.withDescription("Enrollment key id to revoke.")),
+}).pipe(
+  Command.withDescription("Revoke a reusable client enrollment key."),
+  Command.withHandler((flags) =>
+    runWithEnvironmentAuth(flags, (environmentAuth) =>
+      Effect.gen(function* () {
+        const revoked = yield* environmentAuth.revokePairingLink(flags.id);
+        yield* Console.log(
+          revoked
+            ? `Revoked enrollment key ${flags.id}.\n`
+            : `No active enrollment key found for ${flags.id}.\n`,
+        );
+      }),
+    ),
+  ),
+);
+
+const enrollmentCommand = Command.make("enrollment").pipe(
+  Command.withDescription("Manage reusable client enrollment keys."),
+  Command.withSubcommands([
+    enrollmentCreateCommand,
+    enrollmentListCommand,
+    enrollmentRevokeCommand,
+  ]),
 );
 
 const sessionIssueCommand = Command.make("issue", {
@@ -242,5 +332,5 @@ const sessionCommand = Command.make("session").pipe(
 
 export const authCommand = Command.make("auth").pipe(
   Command.withDescription("Manage the local auth control plane for headless deployments."),
-  Command.withSubcommands([pairingCommand, sessionCommand]),
+  Command.withSubcommands([pairingCommand, enrollmentCommand, sessionCommand]),
 );

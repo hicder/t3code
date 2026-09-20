@@ -627,6 +627,48 @@ it.layer(NodeServices.layer)("bin cli parsing", (it) => {
     }),
   );
 
+  it.effect("creates, lists, and revokes reusable enrollment keys", () =>
+    Effect.gen(function* () {
+      const baseDir = NodeFS.mkdtempSync(
+        NodePath.join(NodeOS.tmpdir(), "t3-cli-auth-enrollment-test-"),
+      );
+      const createdOutput = yield* captureStdout(
+        runCli(["auth", "enrollment", "create", "--base-dir", baseDir, "--json"]),
+      );
+      // @effect-diagnostics-next-line preferSchemaOverJson:off
+      const created = JSON.parse(createdOutput.output) as {
+        readonly id: string;
+        readonly credential: string;
+        readonly reusable: boolean;
+      };
+      const listedOutput = yield* captureStdout(
+        runCli(["auth", "enrollment", "list", "--base-dir", baseDir, "--json"]),
+      );
+      // @effect-diagnostics-next-line preferSchemaOverJson:off
+      const listed = JSON.parse(listedOutput.output) as ReadonlyArray<{
+        readonly id: string;
+        readonly credential?: string;
+        readonly reusable: boolean;
+      }>;
+
+      assert.match(created.credential, /^t3e_[A-Za-z0-9_-]{43}$/);
+      assert.isTrue(created.reusable);
+      assert.equal(listed.length, 1);
+      assert.equal(listed[0]?.id, created.id);
+      assert.isTrue(listed[0]?.reusable);
+      assert.equal("credential" in (listed[0] ?? {}), false);
+
+      yield* captureStdout(
+        runCli(["auth", "enrollment", "revoke", created.id, "--base-dir", baseDir]),
+      );
+      const afterRevokeOutput = yield* captureStdout(
+        runCli(["auth", "enrollment", "list", "--base-dir", baseDir, "--json"]),
+      );
+      // @effect-diagnostics-next-line preferSchemaOverJson:off
+      assert.deepEqual(JSON.parse(afterRevokeOutput.output), []);
+    }),
+  );
+
   it.effect("executes auth session subcommands and redacts secrets from list output", () =>
     Effect.gen(function* () {
       const baseDir = NodeFS.mkdtempSync(

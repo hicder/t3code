@@ -39,6 +39,7 @@ export const AuthSessionRecord = Schema.Struct({
   client: AuthSessionClientMetadataRecord,
   issuedAt: Schema.DateTimeUtcFromString,
   expiresAt: Schema.DateTimeUtcFromString,
+  sourcePairingLinkId: Schema.NullOr(Schema.String),
   lastConnectedAt: Schema.NullOr(Schema.DateTimeUtcFromString),
   revokedAt: Schema.NullOr(Schema.DateTimeUtcFromString),
 });
@@ -52,6 +53,7 @@ export const CreateAuthSessionInput = Schema.Struct({
   client: AuthSessionClientMetadataRecord,
   issuedAt: Schema.DateTimeUtcFromString,
   expiresAt: Schema.DateTimeUtcFromString,
+  sourcePairingLinkId: Schema.optionalKey(Schema.NullOr(Schema.String)),
 });
 export type CreateAuthSessionInput = typeof CreateAuthSessionInput.Type;
 
@@ -144,6 +146,7 @@ const AuthSessionDbRow = Schema.Struct({
   clientBrowser: Schema.NullOr(Schema.String),
   issuedAt: Schema.DateTimeUtcFromString,
   expiresAt: Schema.DateTimeUtcFromString,
+  sourcePairingLinkId: Schema.NullOr(Schema.String),
   lastConnectedAt: Schema.NullOr(Schema.DateTimeUtcFromString),
   revokedAt: Schema.NullOr(Schema.DateTimeUtcFromString),
 });
@@ -161,6 +164,7 @@ const AuthSessionRawDbRow = Schema.Struct({
   clientBrowser: Schema.Unknown,
   issuedAt: Schema.Unknown,
   expiresAt: Schema.Unknown,
+  sourcePairingLinkId: Schema.Unknown,
   lastConnectedAt: Schema.Unknown,
   revokedAt: Schema.Unknown,
 });
@@ -183,6 +187,7 @@ function toAuthSessionRecord(row: typeof AuthSessionDbRow.Type): AuthSessionReco
     },
     issuedAt: row.issuedAt,
     expiresAt: row.expiresAt,
+    sourcePairingLinkId: row.sourcePairingLinkId,
     lastConnectedAt: row.lastConnectedAt,
     revokedAt: row.revokedAt,
   };
@@ -225,6 +230,7 @@ export const make = Effect.gen(function* () {
           client_browser,
           issued_at,
           expires_at,
+          source_pairing_link_id,
           revoked_at
         )
         VALUES (
@@ -240,6 +246,7 @@ export const make = Effect.gen(function* () {
           ${input.client.browser},
           ${input.issuedAt},
           ${input.expiresAt},
+          ${input.sourcePairingLinkId ?? null},
           NULL
         )
         ${ignoreExisting ? sql`ON CONFLICT(session_id) DO NOTHING` : sql``}
@@ -266,6 +273,7 @@ export const make = Effect.gen(function* () {
           client_browser AS "clientBrowser",
           issued_at AS "issuedAt",
           expires_at AS "expiresAt",
+          source_pairing_link_id AS "sourcePairingLinkId",
           last_connected_at AS "lastConnectedAt",
           revoked_at AS "revokedAt"
         FROM auth_sessions
@@ -306,6 +314,7 @@ export const make = Effect.gen(function* () {
           client_browser AS "clientBrowser",
           issued_at AS "issuedAt",
           expires_at AS "expiresAt",
+          source_pairing_link_id AS "sourcePairingLinkId",
           last_connected_at AS "lastConnectedAt",
           revoked_at AS "revokedAt"
         FROM auth_sessions

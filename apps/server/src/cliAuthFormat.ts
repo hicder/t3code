@@ -46,6 +46,7 @@ export function formatIssuedPairingCredential(
       {
         id: credential.id,
         credential: credential.credential,
+        reusable: credential.reusable,
         ...(credential.label ? { label: credential.label } : {}),
         scopes: credential.scopes,
         expiresAt: toIsoString(credential.expiresAt),
@@ -58,8 +59,8 @@ export function formatIssuedPairingCredential(
 
   return (
     [
-      `Issued client pairing token ${credential.id}.`,
-      `Token: ${credential.credential}`,
+      `Issued ${credential.reusable ? "reusable enrollment key" : "client pairing token"} ${credential.id}.`,
+      `${credential.reusable ? "Key" : "Token"}: ${credential.credential}`,
       ...(pairUrl ? [`Pair URL: ${pairUrl}`] : []),
       `Expires at: ${credential.expiresAt}`,
     ].join(newline) + newline
@@ -76,6 +77,7 @@ export function formatPairingCredentialList(
     return `${JSON.stringify(
       credentials.map((credential) => ({
         id: credential.id,
+        reusable: credential.reusable,
         ...(credential.label ? { label: credential.label } : {}),
         scopes: credential.scopes,
         createdAt: toIsoString(credential.createdAt),
@@ -94,7 +96,7 @@ export function formatPairingCredentialList(
     credentials
       .map((credential) =>
         [
-          `${credential.id}${credential.label ? ` (${credential.label})` : ""}`,
+          `${credential.id}${credential.label ? ` (${credential.label})` : ""}${credential.reusable ? " reusable" : ""}`,
           `  scopes: ${credential.scopes.join(" ")}`,
           `  created: ${toIsoString(credential.createdAt)}`,
           `  expires: ${toIsoString(credential.expiresAt)}`,

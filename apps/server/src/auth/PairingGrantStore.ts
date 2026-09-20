@@ -10,6 +10,7 @@ import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Encoding from "effect/Encoding";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
@@ -26,6 +27,7 @@ export interface BootstrapGrant {
   readonly subject: string;
   readonly label?: string;
   readonly proofKeyThumbprint?: string;
+  readonly pairingLinkId?: string;
   readonly expiresAt: DateTime.DateTime;
 }
 
@@ -206,6 +208,12 @@ export class PairingGrantStore extends Context.Service<
        */
       readonly purpose?: "startup";
     }) => Effect.Effect<IssuedBootstrapCredential, BootstrapCredentialInternalError>;
+    readonly issueReusableEnrollment: (input?: {
+      readonly ttl?: Duration.Duration;
+      readonly scopes?: ReadonlyArray<AuthEnvironmentScope>;
+      readonly subject?: string;
+      readonly label?: string;
+    }) => Effect.Effect<IssuedBootstrapCredential, BootstrapCredentialInternalError>;
     readonly listActive: () => Effect.Effect<
       ReadonlyArray<AuthPairingLink>,
       BootstrapCredentialInternalError
@@ -237,6 +245,7 @@ type ConsumeResult =
     };
 
 const DEFAULT_ONE_TIME_TOKEN_TTL_MINUTES = Duration.minutes(5);
+const DEFAULT_REUSABLE_ENROLLMENT_TTL = Duration.days(365);
 // The desktop-bootstrap grant rides on a trusted IPC channel (fd3 or
 // stdin) at backend launch, so it doesn't have to be short-lived the
 // way a user-facing pairing link does. Letting it live for the
@@ -289,6 +298,16 @@ export const make = Effect.gen(function* () {
     }
     return credential;
   });
+  const generateEnrollmentToken = crypto.randomBytes(32).pipe(
+    Effect.map((bytes) => `t3e_${Encoding.encodeBase64Url(bytes)}`),
+    Effect.mapError(
+      (cause) => new PairingCredentialRandomGenerationError({ operation: "generate-token", cause }),
+    ),
+  );
+  const hashEnrollmentToken = (credential: string) =>
+    crypto
+      .digest("SHA-256", new TextEncoder().encode(credential))
+      .pipe(Effect.map(Encoding.encodeHex));
 
   const seedGrant = (credential: string, grant: StoredBootstrapGrant) =>
     Ref.update(seededGrantsRef, (current) => {
@@ -338,6 +357,7 @@ export const make = Effect.gen(function* () {
         row.label
           ? ({
               id: row.id,
+              reusable: row.method === "reusable-enrollment",
               scopes: row.scopes,
               subject: row.subject,
               label: row.label,
@@ -346,6 +366,7 @@ export const make = Effect.gen(function* () {
             } satisfies AuthPairingLink)
           : ({
               id: row.id,
+              reusable: row.method === "reusable-enrollment",
               scopes: row.scopes,
               subject: row.subject,
               createdAt: row.createdAt,
@@ -420,6 +441,7 @@ export const make = Effect.gen(function* () {
       );
     yield* emitUpsert({
       id,
+      reusable: false,
       scopes: input?.scopes ?? AuthStandardClientScopes,
       subject: input?.subject ?? "one-time-token",
       ...(input?.label ? { label: input.label } : {}),
@@ -428,6 +450,71 @@ export const make = Effect.gen(function* () {
     });
     return issued;
   });
+
+  const issueReusableEnrollment: PairingGrantStore["Service"]["issueReusableEnrollment"] =
+    Effect.fn("PairingGrantStore.issueReusableEnrollment")(function* (input) {
+      const id = yield* crypto.randomUUIDv4.pipe(
+        Effect.mapError(
+          (cause) =>
+            new PairingCredentialRandomGenerationError({ operation: "generate-id", cause }),
+        ),
+      );
+      const credential = yield* generateEnrollmentToken;
+      const credentialHash = yield* hashEnrollmentToken(credential).pipe(
+        Effect.mapError(
+          (cause) =>
+            new PairingCredentialIssueError({
+              pairingLinkId: id,
+              subject: input?.subject ?? "reusable-enrollment",
+              ...(input?.label ? { label: input.label } : {}),
+              cause,
+            }),
+        ),
+      );
+      const now = yield* DateTime.now;
+      const expiresAt = DateTime.add(now, {
+        milliseconds: Duration.toMillis(input?.ttl ?? DEFAULT_REUSABLE_ENROLLMENT_TTL),
+      });
+      const subject = input?.subject ?? "reusable-enrollment";
+      yield* pairingLinks
+        .create({
+          id,
+          credential: credentialHash,
+          method: "reusable-enrollment",
+          scopes: input?.scopes ?? AuthStandardClientScopes,
+          subject,
+          label: input?.label ?? null,
+          proofKeyThumbprint: null,
+          createdAt: now,
+          expiresAt,
+        })
+        .pipe(
+          Effect.mapError(
+            (cause) =>
+              new PairingCredentialIssueError({
+                pairingLinkId: id,
+                subject,
+                ...(input?.label ? { label: input.label } : {}),
+                cause,
+              }),
+          ),
+        );
+      yield* emitUpsert({
+        id,
+        reusable: true,
+        scopes: input?.scopes ?? AuthStandardClientScopes,
+        subject,
+        ...(input?.label ? { label: input.label } : {}),
+        createdAt: now,
+        expiresAt,
+      });
+      return {
+        id,
+        credential,
+        ...(input?.label ? { label: input.label } : {}),
+        expiresAt,
+      };
+    });
 
   const consume: PairingGrantStore["Service"]["consume"] = Effect.fn("PairingGrantStore.consume")(
     function* (credential, input) {
@@ -532,9 +619,18 @@ export const make = Effect.gen(function* () {
         } satisfies BootstrapGrant;
       }
 
-      const matching = yield* pairingLinks
+      const rawMatching = yield* pairingLinks
         .getByCredential({ credential })
         .pipe(Effect.mapError((cause) => new BootstrapCredentialLookupError({ cause })));
+      const matching =
+        Option.isSome(rawMatching) && rawMatching.value.method !== "reusable-enrollment"
+          ? rawMatching
+          : yield* hashEnrollmentToken(credential).pipe(
+              Effect.flatMap((credentialHash) =>
+                pairingLinks.getByCredential({ credential: credentialHash }),
+              ),
+              Effect.mapError((cause) => new BootstrapCredentialLookupError({ cause })),
+            );
       if (Option.isNone(matching)) {
         return yield* new UnknownBootstrapCredentialError({});
       }
@@ -558,12 +654,24 @@ export const make = Effect.gen(function* () {
         return yield* new BootstrapCredentialProofKeyMismatchError({});
       }
 
+      if (matching.value.method === "reusable-enrollment") {
+        return {
+          method: matching.value.method,
+          scopes: matching.value.scopes,
+          subject: matching.value.subject,
+          pairingLinkId: matching.value.id,
+          ...(matching.value.label ? { label: matching.value.label } : {}),
+          expiresAt: matching.value.expiresAt,
+        } satisfies BootstrapGrant;
+      }
+
       return yield* new UnavailableBootstrapCredentialError({});
     },
   );
 
   return PairingGrantStore.of({
     issueOneTimeToken,
+    issueReusableEnrollment,
     listActive,
     get streamChanges() {
       return Stream.fromPubSub(changesPubSub);

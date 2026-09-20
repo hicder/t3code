@@ -18,7 +18,7 @@ import {
 export const AuthPairingLinkRecord = Schema.Struct({
   id: Schema.String,
   credential: Schema.String,
-  method: Schema.Literals(["desktop-bootstrap", "one-time-token"]),
+  method: Schema.Literals(["desktop-bootstrap", "one-time-token", "reusable-enrollment"]),
   scopes: Schema.fromJsonString(AuthEnvironmentScopes),
   subject: Schema.String,
   label: Schema.NullOr(Schema.String),
@@ -33,7 +33,7 @@ export type AuthPairingLinkRecord = typeof AuthPairingLinkRecord.Type;
 export const CreateAuthPairingLinkInput = Schema.Struct({
   id: Schema.String,
   credential: Schema.String,
-  method: Schema.Literals(["desktop-bootstrap", "one-time-token"]),
+  method: Schema.Literals(["desktop-bootstrap", "one-time-token", "reusable-enrollment"]),
   scopes: AuthEnvironmentScopes,
   subject: Schema.String,
   label: Schema.NullOr(Schema.String),
@@ -164,6 +164,7 @@ export const make = Effect.gen(function* () {
         UPDATE auth_pairing_links
         SET consumed_at = ${consumedAt}
         WHERE credential = ${credential}
+          AND method <> 'reusable-enrollment'
           AND revoked_at IS NULL
           AND consumed_at IS NULL
           AND expires_at > ${now}

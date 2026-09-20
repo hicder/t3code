@@ -10,6 +10,8 @@
 
 import * as Migrator from "effect/unstable/sql/Migrator";
 import * as Effect from "effect/Effect";
+import type * as SqlClient from "effect/unstable/sql/SqlClient";
+import type { SqlError } from "effect/unstable/sql/SqlError";
 
 // Import all migrations statically
 import Migration0001 from "./Migrations/001_OrchestrationEvents.ts";
@@ -66,6 +68,8 @@ import Migration0051 from "./Migrations/051_ProjectionThreadMessageContext.ts";
 import Migration0052 from "./Migrations/052_ProjectionThreadTitleState.ts";
 import Migration0053 from "./Migrations/053_PullRequestFilesViewed.ts";
 import Migration0054 from "./Migrations/054_ProjectionThreadsAutoSettleDisabledAt.ts";
+
+import CustomMigration0001 from "./CustomMigrations/001_AuthReusableEnrollment.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -134,12 +138,26 @@ const migrationEntries = [
   [54, "ProjectionThreadsAutoSettleDisabledAt", Migration0054],
 ] as const;
 
+/**
+ * Migrations that exist only on this fork. They are numbered independently and
+ * tracked in their own table so upstream migrations never collide with them,
+ * and they always run after the upstream migrations.
+ */
+const customMigrationEntries = [[1, "AuthReusableEnrollment", CustomMigration0001]] as const;
+
+const CUSTOM_MIGRATIONS_TABLE = "effect_custom_sql_migrations";
+
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
 
-const makeMigrationLoader = (throughId?: number) =>
+const makeMigrationLoader = (
+  entries: ReadonlyArray<
+    readonly [number, string, Effect.Effect<void, SqlError, SqlClient.SqlClient>]
+  >,
+  throughId?: number,
+) =>
   Migrator.fromRecord(
     Object.fromEntries(
-      migrationEntries
+      entries
         .filter(([id]) => throughId === undefined || id <= throughId)
         .map(([id, name, migration]) => [`${id}_${name}`, migration]),
     ),
@@ -168,10 +186,30 @@ export interface RunMigrationsOptions {
 export const runMigrations = Effect.fn("runMigrations")(function* ({
   toMigrationInclusive,
 }: RunMigrationsOptions = {}) {
-  const executedMigrations = yield* run({ loader: makeMigrationLoader(toMigrationInclusive) });
+  const executedMigrations = yield* run({
+    loader: makeMigrationLoader(migrationEntries, toMigrationInclusive),
+  });
   const migrations = executedMigrations.map(([id, name]) => `${id}_${name}`);
   yield* migrations.length === 0
     ? Effect.logDebug("Database schema is current")
     : Effect.log("Migrations ran successfully").pipe(Effect.annotateLogs({ migrations }));
+  return executedMigrations;
+});
+
+/**
+ * Run all pending custom migrations, tracked in `effect_custom_sql_migrations`.
+ * Call after `runMigrations` so custom migrations see the full upstream schema.
+ */
+export const runCustomMigrations = Effect.fn("runCustomMigrations")(function* ({
+  toMigrationInclusive,
+}: RunMigrationsOptions = {}) {
+  const executedMigrations = yield* run({
+    loader: makeMigrationLoader(customMigrationEntries, toMigrationInclusive),
+    table: CUSTOM_MIGRATIONS_TABLE,
+  });
+  const migrations = executedMigrations.map(([id, name]) => `${id}_${name}`);
+  yield* migrations.length === 0
+    ? Effect.logDebug("Custom database schema is current")
+    : Effect.log("Custom migrations ran successfully").pipe(Effect.annotateLogs({ migrations }));
   return executedMigrations;
 });

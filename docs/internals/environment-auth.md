@@ -18,6 +18,12 @@ secrets. Only the creation response returns the raw credential. Otherwise read
 access to the connections list would become a way to acquire another client's
 authority.
 
+Reusable enrollment keys follow the same delegation rules but may be exchanged
+more than once. Their high-entropy secrets are stored only as SHA-256 digests.
+Every exchange creates a separate session linked to the enrollment record, so
+clients retain independent metadata and revocation. Revoking the enrollment key
+stops future exchanges without revoking sessions already created from it.
+
 Browser cookies, bearer tokens, and DPoP tokens adapt the same scoped session
 model. DPoP binds a token to a client's proof key; an invalid proof must fail
 rather than fall back to bearer authentication. The OAuth token-exchange

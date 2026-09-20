@@ -374,6 +374,7 @@ export class SessionStore extends Context.Service<
       readonly scopes?: ReadonlyArray<AuthEnvironmentScope>;
       readonly client?: AuthClientMetadata;
       readonly proofKeyThumbprint?: string;
+      readonly sourcePairingLinkId?: string;
       /**
        * Atomically revoke active sessions with the same subject and method
        * before storing this session.
@@ -515,6 +516,7 @@ export const make = Effect.gen(function* () {
         },
         issuedAt: yield* DateTime.now,
         expiresAt: REUSABLE_DEV_SESSION_EXPIRES_AT,
+        sourcePairingLinkId: null,
       })
       .pipe(
         Effect.mapError(
@@ -700,6 +702,7 @@ export const make = Effect.gen(function* () {
         },
         issuedAt,
         expiresAt,
+        sourcePairingLinkId: input?.sourcePairingLinkId ?? null,
       } satisfies AuthSessions.CreateAuthSessionInput;
       const replacedSessionIds = yield* (
         input?.replaceActiveForSubjectAndMethod
