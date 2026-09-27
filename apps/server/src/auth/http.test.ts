@@ -103,7 +103,7 @@ it.effect("sets the selected browser session cookies through the HTTP route", ()
             requestContext,
           );
           expect(devResponse.status).toBe(200);
-          const retiredScopeResponse = await environmentA.handler(
+          const reviewWriteResponse = await environmentA.handler(
             new Request("http://127.0.0.1/oauth/token", {
               method: "POST",
               body: new URLSearchParams({
@@ -116,8 +116,8 @@ it.effect("sets the selected browser session cookies through the HTTP route", ()
             }),
             requestContext,
           );
-          expect(retiredScopeResponse.status).toBe(400);
-          expect(await retiredScopeResponse.json()).toMatchObject({ reason: "invalid_scope" });
+          expect(reviewWriteResponse.status).toBe(200);
+          expect(await reviewWriteResponse.json()).toMatchObject({ scope: "review:write" });
 
           const devCookies = devResponse.headers.getSetCookie();
           const devCookie = devCookies.find((cookie) => cookie.startsWith("t3_dev_session_"));

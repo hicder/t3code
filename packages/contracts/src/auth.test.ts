@@ -6,6 +6,7 @@ import {
   AuthEnvironmentScope,
   authScopeRequiredResponse,
   AuthGrantScopes,
+  AuthReusableDevScopes,
   AuthStandardClientScopes,
   authScopeResponse,
   AuthSessionState,
@@ -20,6 +21,11 @@ describe("authorization grants", () => {
     ]);
     expect(() => Schema.decodeUnknownSync(AuthGrantScopes)(["review:write"])).toThrow();
     expect(AuthStandardClientScopes).not.toContain("review:write");
+  });
+
+  it("grants every environment permission through reusable dev auth", () => {
+    expect(AuthReusableDevScopes).toEqual(AuthEnvironmentScope.literals);
+    expect(AuthReusableDevScopes).toContain("review:write");
   });
 
   // Frozen vocabulary from the client before granular scopes shipped. Do not
