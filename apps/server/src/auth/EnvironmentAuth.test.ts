@@ -2,7 +2,11 @@
 import * as NodeCrypto from "node:crypto";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { authScopeResponse, AuthStandardClientScopes } from "@t3tools/contracts";
+import {
+  authScopeResponse,
+  AuthReusableDevScopes,
+  AuthStandardClientScopes,
+} from "@t3tools/contracts";
 import {
   computeDpopAccessTokenHash,
   computeDpopJwkThumbprint,
@@ -132,7 +136,7 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
       const authenticated = yield* serverAuth.authenticateHttpRequest(request);
       expect(devExchange.cookieName).toMatch(/^t3_dev_session_/);
       expect(devExchange.expireNormalCookie).toBe(true);
-      expect(devExchange.response).toMatchObject(authScopeResponse(AuthStandardClientScopes));
+      expect(devExchange.response).toMatchObject(authScopeResponse(AuthReusableDevScopes));
       expect(authenticated.scopes).toEqual(["orchestration:read"]);
     }).pipe(
       Effect.provide(
@@ -245,16 +249,16 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
       expect(firstSession.subject).toBe("reusable-dev-token-child");
       expect(secondSession.subject).toBe("reusable-dev-token-child");
       expect((yield* sessions.verify(token)).subject).toBe("reusable-dev-token");
-      const before = yield* serverAuth.listClientSessions(firstSession.sessionId);
-      const denied = yield* serverAuth
-        .exchangeBootstrapCredentialForAccessToken(token, ["review:write"], requestMetadata)
-        .pipe(Effect.flip);
-      expect(denied._tag).toBe("ServerAuthScopeNotGrantedError");
+      const reviewWrite = yield* serverAuth.exchangeBootstrapCredentialForAccessToken(
+        token,
+        ["review:write"],
+        requestMetadata,
+      );
+      expect(reviewWrite.scope).toBe("review:write");
       const empty = yield* serverAuth
         .exchangeBootstrapCredentialForAccessToken(token, [], requestMetadata)
         .pipe(Effect.flip);
       expect(empty._tag).toBe("ServerAuthScopeNotGrantedError");
-      expect(yield* serverAuth.listClientSessions(firstSession.sessionId)).toEqual(before);
     }).pipe(
       Effect.provide(
         layerEnvironmentAuth({
@@ -513,6 +517,24 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
       expect(verified.scopes).toEqual(AuthStandardClientScopes);
       expect(verified.subject).toBe("administrative-bootstrap");
     }).pipe(Effect.provide(layerEnvironmentAuth())),
+  );
+
+  it.effect("uses the configured reusable token in startup URLs for built web servers", () =>
+    Effect.gen(function* () {
+      const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
+      const token = "reusable-built-web-auth-token-that-is-long-enough";
+
+      const pairingUrl = yield* serverAuth.issueStartupPairingUrl("http://127.0.0.1:3773");
+
+      expect(new URLSearchParams(new URL(pairingUrl).hash.slice(1)).get("token")).toBe(token);
+    }).pipe(
+      Effect.provide(
+        layerEnvironmentAuth({
+          mode: "web",
+          devAuthToken: Redacted.make("reusable-built-web-auth-token-that-is-long-enough"),
+        }),
+      ),
+    ),
   );
 
   it.effect(

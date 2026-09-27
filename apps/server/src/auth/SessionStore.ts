@@ -1,5 +1,6 @@
 import {
   AuthSessionId,
+  AuthReusableDevScopes,
   AuthStandardClientScopes,
   AuthEnvironmentScopes,
   type AuthClientMetadata,
@@ -518,7 +519,7 @@ const make = Effect.gen(function* () {
       .createIfAbsent({
         sessionId: devAuth.sessionId,
         subject: "reusable-dev-token",
-        scopes: AuthStandardClientScopes,
+        scopes: AuthReusableDevScopes,
         method: "browser-session-cookie",
         client: {
           label: "Reusable dev token",
@@ -783,7 +784,7 @@ const make = Effect.gen(function* () {
           client: toClientMetadata(row.value.client),
           expiresAt: row.value.expiresAt,
           subject: row.value.subject,
-          scopes: row.value.scopes,
+          scopes: AuthReusableDevScopes,
         } satisfies VerifiedSession;
       }
       const [encodedPayload, signature] = token.split(".");
