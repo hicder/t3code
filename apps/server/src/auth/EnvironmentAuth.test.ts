@@ -500,6 +500,24 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
     }).pipe(Effect.provide(makeEnvironmentAuthLayer())),
   );
 
+  it.effect("uses the configured reusable token in startup URLs for built web servers", () =>
+    Effect.gen(function* () {
+      const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
+      const token = "reusable-built-web-auth-token-that-is-long-enough";
+
+      const pairingUrl = yield* serverAuth.issueStartupPairingUrl("http://127.0.0.1:3773");
+
+      expect(new URLSearchParams(new URL(pairingUrl).hash.slice(1)).get("token")).toBe(token);
+    }).pipe(
+      Effect.provide(
+        makeEnvironmentAuthLayer({
+          mode: "web",
+          devAuthToken: Redacted.make("reusable-built-web-auth-token-that-is-long-enough"),
+        }),
+      ),
+    ),
+  );
+
   it.effect(
     "lists pairing links and revokes other sessions while keeping the administrative session",
     () =>

@@ -63,8 +63,8 @@ on that hostname. Any service you visit there can receive the reusable admin cre
 including services unrelated to T3 Code. If you run untrusted services on that hostname, keep
 normal per-environment pairing instead.
 
-To use one browser profile across web dev worktrees on the same hostname, generate one fixed
-value once:
+To use one browser profile across web servers on the same hostname, generate one fixed value
+once:
 
 ```sh
 openssl rand -hex 32
@@ -76,24 +76,33 @@ Put that value in the main checkout's gitignored `.env`:
 T3CODE_DEV_AUTH_TOKEN=<the value generated above>
 ```
 
-The `t3.json` Setup Worktree action links that file to each worktree's `.env`. The dev runner reads repository env files at startup. `.env.local` and inherited process
-environment values override `.env`, so no per-worktree export is needed after setup.
+The `t3.json` Setup Worktree action links that file to each worktree's `.env`. The dev runner
+reads repository env files at startup. `.env.local` and inherited process environment values
+override `.env`, so no per-worktree export is needed after setup.
 
-For a manual worktree or launcher without that link, export the same fixed value instead:
+For a built web server, configure the same variable in its service environment. For example:
+
+```sh
+T3CODE_DEV_AUTH_TOKEN="<the value generated above>" \
+  node apps/server/src/bin.ts serve --host 0.0.0.0
+```
+
+For a manual worktree or launcher without the `.env` link, export the same fixed value instead:
 
 ```sh
 export T3CODE_DEV_AUTH_TOKEN="<the value generated above>"
 ```
 
-Do not generate a new value at startup. Start or restart `vp run dev --share` after configuration,
-then open its printed startup pairing URL once per browser profile on that hostname. Later web dev
-servers on the same hostname accept the shared cookie across ports. The cookie expires after 30
-days. Reload an old tab if its URL now serves a replacement environment.
+Do not generate a new value at startup. Start or restart the web server after configuration, then
+open its printed startup pairing URL once per browser profile on that hostname. The URL contains
+the reusable credential rather than a single-use pairing key. Later web servers on the same
+hostname accept the shared cookie across ports. The cookie expires after 30 days. Reload an old
+tab if its URL now serves a replacement environment.
 
 The token and startup pairing URLs are reusable administrative secrets. Never put them in a
 commit, pull request, or public output. Every server still seeds its own auth database record at
-startup and keeps its own SQLite data, signing key, and revocation state. Desktop and non-dev
-servers ignore the value. See [environment authentication](../internals/environment-auth.md#reusable-dev-credential)
+startup and keeps its own SQLite data, signing key, and revocation state. Desktop servers ignore
+the value. See [environment authentication](../internals/environment-auth.md#reusable-dev-credential)
 for the security model.
 
 ## Checks

@@ -10,9 +10,9 @@ export const REUSABLE_DEV_SESSION_PREFIX = "dev-auth-";
 export const REUSABLE_DEV_SESSION_EXPIRES_AT = DateTime.makeUnsafe("9999-12-31T23:59:59.999Z");
 
 export function resolveReusableDevAuth(
-  config: Pick<ServerConfig["Service"], "mode" | "devUrl" | "devAuthToken">,
+  config: Pick<ServerConfig["Service"], "mode" | "devAuthToken">,
 ) {
-  if (config.mode !== "web" || config.devUrl === undefined || config.devAuthToken === undefined) {
+  if (config.mode !== "web" || config.devAuthToken === undefined) {
     return undefined;
   }
   const token = config.devAuthToken;
