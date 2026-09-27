@@ -6,6 +6,7 @@ import {
   AuthEnvironmentScope,
   authScopeRequiredResponse,
   AuthGrantScopes,
+  AuthReusableDevScopes,
   AuthStandardClientScopes,
   authScopeResponse,
   AuthSessionState,
@@ -21,6 +22,11 @@ describe("authorization grants", () => {
 
     expect(() => decodeAuthGrantScopes(["review:write"])).toThrow();
     expect(AuthStandardClientScopes).not.toContain("review:write");
+  });
+
+  it("grants every environment permission through reusable dev auth", () => {
+    expect(AuthReusableDevScopes).toEqual(AuthEnvironmentScope.literals);
+    expect(AuthReusableDevScopes).toContain("review:write");
   });
 
   // Keep the pre-granular vocabulary frozen to expose compatibility regressions.
