@@ -58,7 +58,13 @@ openssl rand -hex 32
 # Add to .env: T3CODE_DEV_AUTH_TOKEN=<value>
 ```
 
-Restart `vp run dev --share` and open its printed pairing URL once per browser profile. Never commit or publish the token or startup URLs. Desktop and non-dev servers ignore it; see [environment auth](../internals/04_environment-auth.md#reusable-dev-credential).
+A built web server reads the same variable from its service environment:
+
+```sh
+T3CODE_DEV_AUTH_TOKEN="<value>" node apps/server/src/bin.ts serve --host 0.0.0.0
+```
+
+Restart the web server (`vp run dev --share` in development) and open its printed startup URL once per browser profile. That URL carries the reusable token rather than a single-use pairing key. Never commit or publish the token or startup URLs. Desktop servers ignore it; see [environment auth](../internals/04_environment-auth.md#reusable-dev-credential).
 
 ## Checks
 
