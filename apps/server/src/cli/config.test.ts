@@ -278,7 +278,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
         host: Option.none<string>(),
         baseDir: Option.some(baseDir),
         cwd: Option.none<string>(),
-        devUrl: Option.some(new URL("http://127.0.0.1:5173")),
+        devUrl: Option.none(),
         noBrowser: Option.none<boolean>(),
         bootstrapFd: Option.none<number>(),
         autoBootstrapProjectFromCwd: Option.none<boolean>(),
@@ -335,24 +335,25 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
       const layerConfig = ConfigProvider.layer(
         ConfigProvider.fromEnv({ env: { T3CODE_DEV_AUTH_TOKEN: secret } }),
       );
-      const error = yield* resolveServerConfig(flags, Option.none()).pipe(
+      const devWebError = yield* resolveServerConfig(flags, Option.none()).pipe(
         Effect.provide(Layer.mergeAll(layerConfig, NetService.layer)),
         Effect.flip,
       );
+      const staticWebError = yield* resolveServerConfig(
+        { ...flags, devUrl: Option.none() },
+        Option.none(),
+      ).pipe(Effect.provide(Layer.mergeAll(layerConfig, NetService.layer)), Effect.flip);
       const desktop = yield* resolveServerConfig(
         { ...flags, mode: Option.some("desktop" as const) },
         Option.none(),
       ).pipe(Effect.provide(Layer.mergeAll(layerConfig, NetService.layer)));
-      const staticWeb = yield* resolveServerConfig(
-        { ...flags, devUrl: Option.none() },
-        Option.none(),
-      ).pipe(Effect.provide(Layer.mergeAll(layerConfig, NetService.layer)));
 
-      expect(String(error)).not.toContain(secret);
-      const serialized = yield* encodeUnknownJson(error);
-      expect(serialized).not.toContain(secret);
+      for (const error of [devWebError, staticWebError]) {
+        expect(String(error)).not.toContain(secret);
+        const serialized = yield* encodeUnknownJson(error);
+        expect(serialized).not.toContain(secret);
+      }
       expect(desktop.devAuthToken).toBeUndefined();
-      expect(staticWeb.devAuthToken).toBeUndefined();
     }),
   );
 

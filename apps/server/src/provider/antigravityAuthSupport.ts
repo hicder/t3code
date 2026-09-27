@@ -79,6 +79,10 @@ const removedEnvironmentKeys = new Set([
   "ELECTRON_RUN_AS_NODE",
   // An inherited pipe whose owner exited makes Electron-as-Node print Crashpad errors to stderr.
   "CHROME_CRASHPAD_PIPE_NAME",
+  // agy refuses browser sign-in when it sees an SSH session, but the BROWSER shim reaches the client.
+  "SSH_CONNECTION",
+  "SSH_CLIENT",
+  "SSH_TTY",
 ]);
 
 export interface AntigravityProfile {

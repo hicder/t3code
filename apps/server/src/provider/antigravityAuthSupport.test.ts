@@ -79,6 +79,9 @@ describe("Antigravity process environment", () => {
       ELECTRON_RUN_AS_NODE: "0",
       CHROME_CRASHPAD_PIPE_NAME: "\\\\.\\pipe\\crashpad_50144_ZUJNJELFHHXPBIRT",
       chrome_crashpad_pipe_name: "\\\\.\\pipe\\crashpad_stale_alias",
+      SSH_CONNECTION: "100.64.0.1 58416 100.64.0.2 22",
+      SSH_CLIENT: "100.64.0.1 58416 22",
+      ssh_tty: "/dev/pts/0",
       CUSTOM_SETTING: "keep-this",
     };
     const original = { ...baseEnv };
