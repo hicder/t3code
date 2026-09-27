@@ -127,7 +127,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
     }),
   );
 
-  it.effect("enables a trimmed reusable auth token only for web dev mode", () =>
+  it.effect("enables a trimmed reusable auth token for web servers only", () =>
     Effect.gen(function* () {
       const baseDir = yield* FileSystem.FileSystem.pipe(
         Effect.flatMap((fs) => fs.makeTempDirectoryScoped({ prefix: "t3-cli-dev-auth-" })),
@@ -138,7 +138,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
         host: Option.none<string>(),
         baseDir: Option.some(baseDir),
         cwd: Option.none<string>(),
-        devUrl: Option.some(new URL("http://127.0.0.1:5173")),
+        devUrl: Option.none(),
         noBrowser: Option.none<boolean>(),
         bootstrapFd: Option.none<number>(),
         autoBootstrapProjectFromCwd: Option.none<boolean>(),
@@ -170,48 +170,46 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
     }),
   );
 
-  it.effect("does not expose an invalid reusable auth token", () =>
-    Effect.gen(function* () {
-      const secret = "short-secret";
-      const baseDir = yield* FileSystem.FileSystem.pipe(
-        Effect.flatMap((fs) => fs.makeTempDirectoryScoped({ prefix: "t3-cli-dev-auth-invalid-" })),
-      );
-      const flags = {
-        mode: Option.some("web" as const),
-        port: Option.some(8788),
-        host: Option.none<string>(),
-        baseDir: Option.some(baseDir),
-        cwd: Option.none<string>(),
-        devUrl: Option.some(new URL("http://127.0.0.1:5173")),
-        noBrowser: Option.none<boolean>(),
-        bootstrapFd: Option.none<number>(),
-        autoBootstrapProjectFromCwd: Option.none<boolean>(),
-        logWebSocketEvents: Option.none<boolean>(),
-        tailscaleServeEnabled: Option.none<boolean>(),
-        tailscaleServePort: Option.none<number>(),
-      };
-      const layerConfig = ConfigProvider.layer(
-        ConfigProvider.fromEnv({ env: { T3CODE_DEV_AUTH_TOKEN: secret } }),
-      );
-      const error = yield* resolveServerConfig(flags, Option.none()).pipe(
-        Effect.provide(Layer.mergeAll(layerConfig, NetService.layer)),
-        Effect.flip,
-      );
-      const desktop = yield* resolveServerConfig(
-        { ...flags, mode: Option.some("desktop" as const) },
-        Option.none(),
-      ).pipe(Effect.provide(Layer.mergeAll(layerConfig, NetService.layer)));
-      const staticWeb = yield* resolveServerConfig(
-        { ...flags, devUrl: Option.none() },
-        Option.none(),
-      ).pipe(Effect.provide(Layer.mergeAll(layerConfig, NetService.layer)));
-
-      expect(String(error)).not.toContain(secret);
-      const serialized = yield* encodeUnknownJson(error);
-      expect(serialized).not.toContain(secret);
-      expect(desktop.devAuthToken).toBeUndefined();
-      expect(staticWeb.devAuthToken).toBeUndefined();
-    }),
+  it.effect(
+    "rejects invalid reusable auth tokens for web servers and ignores them in desktop mode",
+    () =>
+      Effect.gen(function* () {
+        const secret = "short-secret";
+        const baseDir = yield* FileSystem.FileSystem.pipe(
+          Effect.flatMap((fs) =>
+            fs.makeTempDirectoryScoped({ prefix: "t3-cli-dev-auth-invalid-" }),
+          ),
+        );
+        const flags = {
+          mode: Option.some("web" as const),
+          port: Option.some(8788),
+          host: Option.none<string>(),
+          baseDir: Option.some(baseDir),
+          cwd: Option.none<string>(),
+          devUrl: Option.none(),
+          noBrowser: Option.none<boolean>(),
+          bootstrapFd: Option.none<number>(),
+          autoBootstrapProjectFromCwd: Option.none<boolean>(),
+          logWebSocketEvents: Option.none<boolean>(),
+          tailscaleServeEnabled: Option.none<boolean>(),
+          tailscaleServePort: Option.none<number>(),
+        };
+        const configLayer = ConfigProvider.layer(
+          ConfigProvider.fromEnv({ env: { T3CODE_DEV_AUTH_TOKEN: secret } }),
+        );
+        const error = yield* resolveServerConfig(flags, Option.none()).pipe(
+          Effect.provide(Layer.mergeAll(configLayer, NetService.layer)),
+          Effect.flip,
+        );
+        const desktop = yield* resolveServerConfig(
+          { ...flags, mode: Option.some("desktop" as const) },
+          Option.none(),
+        ).pipe(Effect.provide(Layer.mergeAll(configLayer, NetService.layer)));
+        expect(String(error)).not.toContain(secret);
+        const serialized = yield* encodeUnknownJson(error);
+        expect(serialized).not.toContain(secret);
+        expect(desktop.devAuthToken).toBeUndefined();
+      }),
   );
 
   it.effect("falls back to effect/config values when flags are omitted", () =>

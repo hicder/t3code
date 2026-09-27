@@ -3,7 +3,7 @@ import {
   AuthAccessReadScope,
   AuthAccessWriteScope,
   AuthStandardClientScopes,
-  AuthGrantScope,
+  AuthEnvironmentScope,
   EnvironmentAuthInvalidError,
   type EnvironmentAuthInvalidReason,
   EnvironmentHttpApi,
@@ -18,7 +18,7 @@ import {
   EnvironmentAuthenticatedAuth,
   EnvironmentAuthenticatedPrincipal,
 } from "@t3tools/contracts";
-import type { AuthEnvironmentScope, DpopFailureReason } from "@t3tools/contracts";
+import type { DpopFailureReason } from "@t3tools/contracts";
 import { parseOAuthScope } from "@t3tools/shared/oauthScope";
 import { causeErrorTag } from "@t3tools/shared/observability";
 import * as Clock from "effect/Clock";
@@ -359,7 +359,8 @@ export const layer = HttpApiBuilder.group(
             const requestedScopes =
               args.payload.scope === undefined
                 ? undefined
-                : (parseOAuthScope(args.payload.scope)?.filter(Schema.is(AuthGrantScope)) ?? null);
+                : (parseOAuthScope(args.payload.scope)?.filter(Schema.is(AuthEnvironmentScope)) ??
+                  null);
             if (requestedScopes === null || requestedScopes?.length === 0) {
               return yield* failEnvironmentInvalidRequest("invalid_scope");
             }

@@ -224,6 +224,9 @@ export const AuthAdministrativeScopes = [
   AuthRelayWriteScope,
 ] as const;
 
+/** Maintainer-only reusable dev auth; includes every environment permission. */
+export const AuthReusableDevScopes = AuthEnvironmentScope.literals;
+
 export const AuthTokenExchangeGrantType =
   "urn:ietf:params:oauth:grant-type:token-exchange" as const;
 export const AuthAccessTokenType = "urn:ietf:params:oauth:token-type:access_token" as const;
