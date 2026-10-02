@@ -268,6 +268,12 @@ Follow an agent's file link to read a report or other file outside the workspace
 These files open read-only. An HTML file outside the workspace cannot load scripts,
 styles, or images from neighboring files.
 
+## Mermaid diagrams
+
+On web and desktop, fenced `mermaid` code blocks in assistant messages and
+Markdown previews render as diagrams. Use the **Diagram** and **Code** controls
+in the block header to switch between the rendered diagram and its source.
+
 ## HTML and PDF files in the file viewer
 
 On web and desktop, HTML and PDF files open as rendered pages. Switch an HTML

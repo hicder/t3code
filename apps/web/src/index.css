@@ -1950,6 +1950,12 @@ code {
   background: transparent !important;
 }
 
+.chat-markdown .chat-markdown-mermaid svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
 /* Paragraphs and code blocks arrive in chunks while a response streams. Fade
    each new block in so the chunk does not pop. @starting-style only applies
    when an element is first inserted, and the rule is gated on data-streaming,

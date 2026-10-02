@@ -58,6 +58,11 @@ vi.mock("~/lib/openPullRequestLink", () => ({
   resolvePullRequestPreviewTarget: () => null,
   useOpenChangeRequestLink: () => vi.fn(),
 }));
+vi.mock("../lib/mermaid", () => ({
+  renderMermaid: vi.fn(() =>
+    Promise.resolve('<svg xmlns="http://www.w3.org/2000/svg" data-testid="mermaid"></svg>'),
+  ),
+}));
 
 import ChatMarkdown, {
   canUseMarkdownFileShellActions,
@@ -242,6 +247,52 @@ describe("ChatMarkdown streaming", () => {
             .some((button) => button.props["aria-label"] === "Run in terminal"),
         ).toBe(false);
       }
+    } finally {
+      await act(async () => renderer?.unmount());
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("renders closed mermaid fences as diagrams", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    let renderer: ReactTestRenderer | undefined;
+    const text = "```mermaid\nflowchart LR\n  A --> B\n```";
+    try {
+      await act(async () => {
+        renderer = create(<ChatMarkdown cwd={undefined} text={text} />);
+      });
+      expect(
+        renderer!.root.findByProps({
+          className: "chat-markdown-mermaid overflow-x-auto px-3 pb-3",
+        }),
+      ).toBeDefined();
+      expect(renderer!.root.findByProps({ "data-language": "mermaid" })).toBeDefined();
+      expect(
+        renderer!.root.findAll((node) => node.props["aria-pressed"] === true).length,
+      ).toBeGreaterThanOrEqual(1);
+    } finally {
+      await act(async () => renderer?.unmount());
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("keeps streaming mermaid fences in the code path until the fence closes", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    let renderer: ReactTestRenderer | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          <ChatMarkdown cwd={undefined} text={"```mermaid\nflowchart LR"} isStreaming />,
+        );
+      });
+      expect(renderer!.root.findByProps({ "data-language": "mermaid" })).toBeDefined();
+      expect(
+        renderer!.root.findAll(
+          (node) =>
+            typeof node.props.className === "string" &&
+            node.props.className.includes("chat-markdown-mermaid"),
+        ),
+      ).toHaveLength(0);
     } finally {
       await act(async () => renderer?.unmount());
       vi.unstubAllGlobals();

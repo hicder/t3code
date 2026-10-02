@@ -235,6 +235,12 @@
     },
     {
       "license": "MIT",
+      "name": "khroma",
+      "sourceUrl": "https://github.com/fabiospampinato/khroma",
+      "version": "2.1.0"
+    },
+    {
+      "license": "MIT",
       "name": "type-fest",
       "generatedNotice": {
         "licenseId": "MIT",

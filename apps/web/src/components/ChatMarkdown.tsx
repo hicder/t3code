@@ -140,6 +140,7 @@ import { getSyntaxHighlighterPromise } from "../lib/syntaxHighlighting";
 import { GitHubIcon } from "./Icons";
 import { createIncrementalHighlightedDocument } from "../lib/incrementalHighlighting";
 import { HighlightedCodeLines } from "./chat/HighlightedCodeLines";
+import { MermaidDiagramSvg } from "./chat/MermaidDiagram";
 import { RenderErrorBoundary } from "./RenderErrorBoundary";
 import { useTheme } from "../hooks/useTheme";
 import { getClientSettings, useClientSettings } from "../hooks/useSettings";
@@ -975,6 +976,8 @@ function MarkdownCodeBlock({
   theme,
   onRunShellCommand,
   isStreaming,
+  extraToolbarItems,
+  showWordWrapToggle = true,
   children,
 }: {
   code: string;
@@ -983,6 +986,8 @@ function MarkdownCodeBlock({
   theme: "light" | "dark";
   onRunShellCommand?: ((command: string) => void) | undefined;
   isStreaming: boolean;
+  extraToolbarItems?: ReactNode;
+  showWordWrapToggle?: boolean;
   children: ReactNode;
 }) {
   const [copied, setCopied] = useState(false);
@@ -1055,23 +1060,26 @@ function MarkdownCodeBlock({
           />
         </span>
         <span className="flex items-center gap-0.5" role="toolbar" aria-label="Code block actions">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant={wrapped ? "secondary" : "ghost-muted"}
-                  size="icon-xs"
-                  aria-pressed={wrapped}
-                  onClick={() => setWrapped((value) => !value)}
-                  aria-label={wrapLabel}
-                />
-              }
-            >
-              <WrapTextIcon className="size-3" />
-            </TooltipTrigger>
-            <TooltipPopup side="top">{wrapLabel}</TooltipPopup>
-          </Tooltip>
+          {extraToolbarItems}
+          {showWordWrapToggle ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant={wrapped ? "secondary" : "ghost-muted"}
+                    size="icon-xs"
+                    aria-pressed={wrapped}
+                    onClick={() => setWrapped((value) => !value)}
+                    aria-label={wrapLabel}
+                  />
+                }
+              >
+                <WrapTextIcon className="size-3" />
+              </TooltipTrigger>
+              <TooltipPopup side="top">{wrapLabel}</TooltipPopup>
+            </Tooltip>
+          ) : null}
           {canRun ? (
             <Tooltip>
               <TooltipTrigger
@@ -1110,6 +1118,106 @@ function MarkdownCodeBlock({
       </div>
       {children}
     </div>
+  );
+}
+
+const MERMAID_FENCE_LANGUAGE = "mermaid";
+
+function MarkdownMermaidViewToggle({
+  view,
+  onViewChange,
+}: {
+  view: "diagram" | "code";
+  onViewChange: (view: "diagram" | "code") => void;
+}) {
+  return (
+    <span className="mr-1 inline-flex items-center gap-0.5 rounded-md border border-border/50 p-0.5">
+      <Button
+        type="button"
+        variant={view === "diagram" ? "secondary" : "ghost-muted"}
+        size="micro"
+        aria-pressed={view === "diagram"}
+        onClick={() => onViewChange("diagram")}
+      >
+        Diagram
+      </Button>
+      <Button
+        type="button"
+        variant={view === "code" ? "secondary" : "ghost-muted"}
+        size="micro"
+        aria-pressed={view === "code"}
+        onClick={() => onViewChange("code")}
+      >
+        Code
+      </Button>
+    </span>
+  );
+}
+
+function MarkdownMermaidFence({
+  code,
+  className,
+  fenceTitle,
+  theme,
+  themeName,
+  preProps,
+  preChildren,
+}: {
+  code: string;
+  className: string | undefined;
+  fenceTitle: string | null;
+  theme: "light" | "dark";
+  themeName: DiffThemeName;
+  preProps: React.ComponentProps<"pre">;
+  preChildren: ReactNode;
+}) {
+  const [view, setView] = useState<"diagram" | "code">("diagram");
+  const shikiFallback = (
+    <pre {...preProps} className="invisible" aria-hidden>
+      {preChildren}
+    </pre>
+  );
+
+  return (
+    <MarkdownCodeBlock
+      code={code}
+      language={MERMAID_FENCE_LANGUAGE}
+      fenceTitle={fenceTitle}
+      theme={theme}
+      isStreaming={false}
+      extraToolbarItems={<MarkdownMermaidViewToggle view={view} onViewChange={setView} />}
+      showWordWrapToggle={view === "code"}
+    >
+      {view === "code" ? (
+        <RenderErrorBoundary
+          resetKeys={[code, className, themeName]}
+          fallback={<pre {...preProps}>{preChildren}</pre>}
+        >
+          <Suspense fallback={shikiFallback}>
+            <SuspenseShikiCodeBlock
+              className={className}
+              code={code}
+              themeName={themeName}
+              isStreaming={false}
+            />
+          </Suspense>
+        </RenderErrorBoundary>
+      ) : (
+        <RenderErrorBoundary
+          resetKeys={[code, theme]}
+          fallback={
+            <div className="px-3 pb-3">
+              <p className="mb-2 text-2xs text-muted-foreground">Could not render diagram.</p>
+              <pre {...preProps}>{preChildren}</pre>
+            </div>
+          }
+        >
+          <Suspense fallback={shikiFallback}>
+            <MermaidDiagramSvg code={code} theme={theme} />
+          </Suspense>
+        </RenderErrorBoundary>
+      )}
+    </MarkdownCodeBlock>
   );
 }
 
@@ -3310,6 +3418,20 @@ const CHAT_MARKDOWN_COMPONENTS = {
 
     const language = extractFenceLanguage(codeBlock.className);
     const fenceTitle = extractFenceTitle(extractPreCodeMeta(node));
+    const fenceClosed = isClosedCodeFence(node, text);
+    if (language === MERMAID_FENCE_LANGUAGE && !isStreaming && fenceClosed) {
+      return (
+        <MarkdownMermaidFence
+          code={codeBlock.code}
+          className={codeBlock.className}
+          fenceTitle={fenceTitle}
+          theme={resolvedTheme}
+          themeName={diffThemeName}
+          preProps={props}
+          preChildren={children}
+        />
+      );
+    }
     return (
       <MarkdownCodeBlock
         code={codeBlock.code}
@@ -3317,9 +3439,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
         fenceTitle={fenceTitle}
         theme={resolvedTheme}
         onRunShellCommand={
-          onRunShellCommand && !isStreaming && isClosedCodeFence(node, text)
-            ? onRunShellCommand
-            : undefined
+          onRunShellCommand && !isStreaming && fenceClosed ? onRunShellCommand : undefined
         }
         isStreaming={isStreaming}
       >
