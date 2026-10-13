@@ -48,13 +48,16 @@ describe("composer attachment files", () => {
   });
 
   it("rejects unsupported image types instead of attaching them as generic files", () => {
-    expect(classifyComposerAttachmentFile({ name: "diagram.svg", type: "image/svg+xml" })).toBe(
-      "unsupported-image",
-    );
     expect(classifyComposerAttachmentFile({ name: "photo.tiff", type: "image/tiff" })).toBe(
       "unsupported-image",
     );
     expect(classifyComposerAttachmentFile({ name: "report.pdf", type: "application/pdf" })).toBe(
+      "file",
+    );
+  });
+
+  it("attaches SVG as a generic file the agent can read", () => {
+    expect(classifyComposerAttachmentFile({ name: "diagram.svg", type: "image/svg+xml" })).toBe(
       "file",
     );
   });
@@ -71,10 +74,7 @@ describe("composer attachment files", () => {
   });
 
   it("claims unsupported image pastes so the composer can report them", () => {
-    const images = [
-      new File(["svg"], "diagram.svg", { type: "image/svg+xml" }),
-      new File(["tiff"], "photo.tiff", { type: "image/tiff" }),
-    ];
+    const images = [new File(["tiff"], "photo.tiff", { type: "image/tiff" })];
 
     for (const image of images) {
       expect(

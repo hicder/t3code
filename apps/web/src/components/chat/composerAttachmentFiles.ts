@@ -68,6 +68,10 @@ export function classifyComposerAttachmentFile(
   if (inferImageMimeTypeForUnknownFile(file)) {
     return "image";
   }
+  // SVG is XML text the agent can read, not a raster image a provider can see.
+  if (file.type.toLowerCase() === "image/svg+xml") {
+    return "file";
+  }
   if (!file.type.toLowerCase().startsWith("image/")) {
     return "file";
   }
